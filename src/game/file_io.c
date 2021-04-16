@@ -54,7 +54,7 @@
 
 #define PIECE_SIZE_DYNAMIC 0
 
-static const int SAVE_GAME_CURRENT_VERSION = 0x82;
+static const int SAVE_GAME_CURRENT_VERSION = 0x83;
 
 static const int SAVE_GAME_LAST_ORIGINAL_LIMITS_VERSION = 0x66;
 static const int SAVE_GAME_LAST_SMALLER_IMAGE_ID_VERSION = 0x76;
@@ -437,8 +437,6 @@ static void savegame_load_from_state(savegame_state *state, int version)
         version > SAVE_GAME_LAST_JOINED_IMPORT_EXPORT_VERSION);
 
     building_load_state(state->buildings,
-        state->building_extra_highest_id,
-        state->building_extra_highest_id_ever,
         state->building_extra_sequence,
         state->building_extra_corrupt_houses,
         version > SAVE_GAME_LAST_STATIC_VERSION);

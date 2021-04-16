@@ -44,6 +44,7 @@ extern struct city_data_t {
         int8_t triumphal_arches_available;
         int8_t triumphal_arches_placed;
         int16_t working_wharfs;
+        int32_t caravanserai_building_id;
         int32_t shipyard_boats_requested;
         int16_t working_docks;
         int16_t working_dock_ids[10];
@@ -231,6 +232,7 @@ extern struct city_data_t {
 
         int32_t protesters;
         int32_t criminals; // muggers+rioters
+        int8_t crime_cooldown;
     } sentiment;
     struct {
         int32_t num_hospital_workers;
@@ -413,6 +415,9 @@ extern struct city_data_t {
         int32_t food_percentage_missing_this_month;
         int32_t total_food;
     } mess_hall;
+    struct {
+        int32_t total_food;
+    } caravanserai;
     struct {
         int8_t other_player[18068];
         int8_t unknown_00a0;

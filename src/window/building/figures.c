@@ -2,6 +2,10 @@
 
 #include "assets/assets.h"
 #include "building/building.h"
+#include "building/caravanserai.h"
+#include "building/model.h"
+#include "building/monument.h"
+#include "city/buildings.h"
 #include "city/view.h"
 #include "core/config.h"
 #include "empire/city.h"
@@ -15,6 +19,7 @@
 #include "graphics/image.h"
 #include "graphics/lang_text.h"
 #include "graphics/panel.h"
+#include "graphics/rich_text.h"
 #include "graphics/text.h"
 #include "graphics/window.h"
 #include "scenario/property.h"
@@ -36,12 +41,12 @@ static const int FIGURE_TYPE_TO_BIG_FIGURE_IMAGE[] = {
     8, 8, 34, 39, 33, 43, 27, 48, 63, 8, //50-59
     8, 8, 8, 8, 53, 8, 38, 62, 54, 55, //60-69
     56, 8, 8, 58, 0, 7, 50, 0, 14, 3, //70-79
-    3, 58, 50, 0, 0, 0, 0, 0, 0, 0 //80-89
+    3, 58, 50, 0, 0, 3, 0, 0, 0, 0 //80-89
 };
 // Starting with FIGURE_WORK_CAMP_WORKER = 73,
 static const int NEW_FIGURE_TYPES[] = {
     TR_FIGURE_TYPE_WORK_CAMP_WORKER,TR_FIGURE_TYPE_WORK_CAMP_SLAVE,TR_FIGURE_TYPE_WORK_CAMP_ARCHITECT,TR_FIGURE_TYPE_MESS_HALL_SUPPLIER,TR_FIGURE_TYPE_MESS_HALL_COLLECTOR,
-    TR_FIGURE_TYPE_PRIEST_SUPPLIER, TR_FIGURE_TYPE_BARKEEP, TR_FIGURE_TYPE_BARKEEP_SUPPLIER, TR_FIGURE_TYPE_TOURIST, TR_FIGURE_TYPE_WATCHMAN, 0, 0 
+    TR_FIGURE_TYPE_PRIEST_SUPPLIER, TR_FIGURE_TYPE_BARKEEP, TR_FIGURE_TYPE_BARKEEP_SUPPLIER, TR_FIGURE_TYPE_TOURIST, TR_FIGURE_TYPE_WATCHMAN, 0, 0, TR_FIGURE_TYPE_CARAVANSERAI_SUPPLIER
 };
 
 static generic_button figure_buttons[] = {
@@ -55,31 +60,31 @@ static generic_button figure_buttons[] = {
 };
 
 static struct {
-    color_t figure_images[7][48*48];
+    color_t figure_images[7][48 * 48];
     int focus_button_id;
     building_info_context *context_for_callback;
 } data;
 
 static int big_people_image(figure_type type)
 {
-    switch (type)
-    {
-    case FIGURE_WORK_CAMP_SLAVE:
-        return assets_get_image_id(assets_get_group_id("Areldir", "Slave_Walker"), "Slave Portrait");
-        break;
-    case FIGURE_MESS_HALL_COLLECTOR:
-        return assets_get_image_id(assets_get_group_id("Areldir", "Mess_Hall_Walker"), "M Hall Portrait");
-        break;
-    case FIGURE_TRADE_CARAVAN_DONKEY:
-    case FIGURE_TRADE_CARAVAN:
-        if (scenario_property_climate() == CLIMATE_DESERT) {
-            return image_group(GROUP_BIG_PEOPLE) + CAMEL_PORTRAIT - 1;
-        }
-    case FIGURE_BARKEEP:
-    case FIGURE_BARKEEP_SUPPLIER:
-        return assets_get_image_id(assets_get_group_id("Areldir", "Entertainment"), "Barkeep Portrait");
-    default:
-        break;
+    switch (type) {
+        case FIGURE_WORK_CAMP_SLAVE:
+            return assets_get_image_id(assets_get_group_id("Areldir", "Slave_Walker"), "Slave Portrait");
+            break;
+        case FIGURE_MESS_HALL_COLLECTOR:
+            return assets_get_image_id(assets_get_group_id("Areldir", "Mess_Hall"), "M Hall Portrait");
+            break;
+        case FIGURE_TRADE_CARAVAN_DONKEY:
+        case FIGURE_TRADE_CARAVAN:
+            if (scenario_property_climate() == CLIMATE_DESERT) {
+                return image_group(GROUP_BIG_PEOPLE) + CAMEL_PORTRAIT - 1;
+            }
+        case FIGURE_BARKEEP:
+        case FIGURE_BARKEEP_SUPPLIER:
+        case FIGURE_CARAVANSERAI_SUPPLIER:
+            return assets_get_image_id(assets_get_group_id("Areldir", "Entertainment"), "Barkeep Portrait");
+        default:
+            break;
     }
     return image_group(GROUP_BIG_PEOPLE) + FIGURE_TYPE_TO_BIG_FIGURE_IMAGE[type] - 1;
 }
@@ -99,8 +104,8 @@ static void draw_trader(building_info_context *c, figure *f)
     int width = lang_text_draw(64, f->type, c->x_offset + 40, c->y_offset + 110, FONT_SMALL_BLACK);
     lang_text_draw(21, city->name_id, c->x_offset + 40 + width, c->y_offset + 110, FONT_SMALL_BLACK);
 
-    width = lang_text_draw(129, 1, c->x_offset + 40, c->y_offset + 132, FONT_SMALL_BLACK);
-    lang_text_draw_amount(8, 10, f->type == FIGURE_TRADE_SHIP ? figure_trade_sea_trade_units() : figure_trade_land_trade_units(), c->x_offset + 40 + width, c->y_offset + 132, FONT_SMALL_BLACK);
+    width = lang_text_draw(129, 1, c->x_offset + 40, c->y_offset + (f->type == FIGURE_TRADE_SHIP ? 132 : 130), FONT_SMALL_BLACK);
+    lang_text_draw_amount(8, 10, f->type == FIGURE_TRADE_SHIP ? figure_trade_sea_trade_units() : figure_trade_land_trade_units(), c->x_offset + 40 + width, c->y_offset + (f->type == FIGURE_TRADE_SHIP ? 132 : 130), FONT_SMALL_BLACK);
 
     int trader_id = f->trader_id;
     if (f->type == FIGURE_TRADE_SHIP) {
@@ -132,11 +137,11 @@ static void draw_trader(building_info_context *c, figure *f)
                 text_id = 11;
                 break;
         }
-        lang_text_draw(129, text_id, c->x_offset + 40, c->y_offset + 154, FONT_SMALL_BLACK);
+        lang_text_draw(129, text_id, c->x_offset + 40, c->y_offset + 150, FONT_SMALL_BLACK);
     }
     if (trader_has_traded(trader_id)) {
         // bought
-        int y_base = c->y_offset + 180;
+        int y_base = c->y_offset + (f->type == FIGURE_TRADE_SHIP ? 180 : 174) ;
         width = lang_text_draw(129, 4, c->x_offset + 40, y_base, FONT_SMALL_BLACK);
         for (int r = RESOURCE_MIN; r < RESOURCE_MAX; r++) {
             if (trader_bought_resources(trader_id, r)) {
@@ -148,7 +153,7 @@ static void draw_trader(building_info_context *c, figure *f)
             }
         }
         // sold
-        y_base = c->y_offset + 210;
+        y_base = c->y_offset + (f->type == FIGURE_TRADE_SHIP ? 210 : 202);
         width = lang_text_draw(129, 5, c->x_offset + 40, y_base, FONT_SMALL_BLACK);
         for (int r = RESOURCE_MIN; r < RESOURCE_MAX; r++) {
             if (trader_sold_resources(trader_id, r)) {
@@ -161,7 +166,7 @@ static void draw_trader(building_info_context *c, figure *f)
         }
     } else { // nothing sold/bought (yet)
         // buying
-        int y_base = c->y_offset + 180;
+        int y_base = c->y_offset + (f->type == FIGURE_TRADE_SHIP ? 180 : 174) ;
         width = lang_text_draw(129, 2, c->x_offset + 40, y_base, FONT_SMALL_BLACK);
         for (int r = RESOURCE_MIN; r < RESOURCE_MAX; r++) {
             if (city->buys_resource[r]) {
@@ -171,7 +176,7 @@ static void draw_trader(building_info_context *c, figure *f)
             }
         }
         // selling
-        y_base = c->y_offset + 210;
+        y_base = c->y_offset + (f->type == FIGURE_TRADE_SHIP ? 210 : 202);
         width = lang_text_draw(129, 3, c->x_offset + 40, y_base, FONT_SMALL_BLACK);
         for (int r = RESOURCE_MIN; r < RESOURCE_MAX; r++) {
             if (city->sells_resource[r]) {
@@ -179,6 +184,34 @@ static void draw_trader(building_info_context *c, figure *f)
                 image_draw(image_id, c->x_offset + 40 + width, y_base - 3);
                 width += 25;
             }
+        }
+    }
+
+    if (building_monument_working(BUILDING_CARAVANSERAI) && f->type != FIGURE_TRADE_SHIP) {
+
+        building *b = building_get(city_buildings_get_caravanserai());
+        int active = building_caravanserai_enough_foods(b);
+
+        if (active) {
+            int policy = building_monument_module_type(BUILDING_CARAVANSERAI);
+            if(policy) {
+                int text_width = text_draw(translation_for(TR_BUILDING_CARAVANSERAI_POLICY_TITLE), c->x_offset + 40, c->y_offset + 222, FONT_SMALL_BLACK, 0);
+                switch(policy) {
+                    case TRADE_POLICY_1 :
+                        text_draw(translation_for(TR_BUILDING_CARAVANSERAI_POLICY_1_TITLE), c->x_offset + 40 + text_width + 10, c->y_offset + 222, FONT_SMALL_BLACK, 0);
+                        break;
+                    case TRADE_POLICY_2 :
+                        text_draw(translation_for(TR_BUILDING_CARAVANSERAI_POLICY_2_TITLE), c->x_offset + 40 + text_width + 10, c->y_offset + 222, FONT_SMALL_BLACK, 0);
+                        break;
+                    case TRADE_POLICY_3 :
+                        text_draw(translation_for(TR_BUILDING_CARAVANSERAI_POLICY_3_TITLE), c->x_offset + 40 + text_width + 10, c->y_offset + 222, FONT_SMALL_BLACK, 0);
+                        break;
+                }
+            } else {
+                text_draw(translation_for(TR_BUILDING_CARAVANSERAI_NO_POLICY), c->x_offset + 40, c->y_offset + 222, FONT_SMALL_BLACK, 0);
+            }
+        } else {
+            text_draw(translation_for(TR_BUILDING_CARAVANSERAI_NO_POLICY), c->x_offset + 40, c->y_offset + 222, FONT_SMALL_BLACK, 0);
         }
     }
 }
@@ -301,7 +334,7 @@ static void draw_supplier(building_info_context *c, figure *f)
 
     lang_text_draw(65, f->name, c->x_offset + 90, c->y_offset + 108, FONT_LARGE_BROWN);
     int width = 0;
-    if (f->type == FIGURE_MESS_HALL_SUPPLIER || f->type == FIGURE_PRIEST_SUPPLIER || f->type == FIGURE_BARKEEP_SUPPLIER) {
+    if (f->type == FIGURE_MESS_HALL_SUPPLIER || f->type == FIGURE_PRIEST_SUPPLIER || f->type == FIGURE_BARKEEP_SUPPLIER || f->type == FIGURE_CARAVANSERAI_SUPPLIER) {
         int relative_id = f->type - NEW_FIGURES_ID;
         width = text_draw(translation_for(NEW_FIGURE_TYPES[relative_id]), c->x_offset + 92, c->y_offset + 139, FONT_SMALL_BLACK, 0);
     } else {
@@ -331,20 +364,20 @@ static void draw_monument_worker(building_info_context *c, figure *f)
 {
     image_draw(big_people_image(f->type), c->x_offset + 28, c->y_offset + 112);
 
-	lang_text_draw(65, f->name, c->x_offset + 90, c->y_offset + 108, FONT_LARGE_BROWN);
-	int relative_id = f->type - NEW_FIGURES_ID;
-	int width = text_draw(translation_for(NEW_FIGURE_TYPES[relative_id]), c->x_offset + 92, c->y_offset + 139, FONT_SMALL_BLACK, 0);
+    lang_text_draw(65, f->name, c->x_offset + 90, c->y_offset + 108, FONT_LARGE_BROWN);
+    int relative_id = f->type - NEW_FIGURES_ID;
+    int width = text_draw(translation_for(NEW_FIGURE_TYPES[relative_id]), c->x_offset + 92, c->y_offset + 139, FONT_SMALL_BLACK, 0);
     int resource = f->collecting_item_id;
 
-    if (f->action_state == FIGURE_ACTION_204_WORK_CAMP_WORKER_GETTING_RESOURCES ) {
+    if (f->action_state == FIGURE_ACTION_204_WORK_CAMP_WORKER_GETTING_RESOURCES) {
         width += lang_text_draw(129, 17, c->x_offset + 90 + width, c->y_offset + 139, FONT_SMALL_BLACK);
         image_draw(image_group(GROUP_RESOURCE_ICONS) + resource + resource_image_offset(resource, RESOURCE_IMAGE_ICON),
             c->x_offset + 90 + width, c->y_offset + 135);
     } else if (f->action_state == FIGURE_ACTION_205_WORK_CAMP_WORKER_GOING_TO_MONUMENT || f->action_state == FIGURE_ACTION_209_WORK_CAMP_SLAVE_FOLLOWING ||
         f->action_state == FIGURE_ACTION_210_WORK_CAMP_SLAVE_GOING_TO_MONUMENT || f->action_state == FIGURE_ACTION_211_WORK_CAMP_SLAVE_DELIVERING_RESOURCES) {
-            width += lang_text_draw(129, 18, c->x_offset + 90 + width, c->y_offset + 139, FONT_SMALL_BLACK);
-            image_draw(image_group(GROUP_RESOURCE_ICONS) + resource + resource_image_offset(resource, RESOURCE_IMAGE_ICON),
-                c->x_offset + 90 + width, c->y_offset + 135);
+        width += lang_text_draw(129, 18, c->x_offset + 90 + width, c->y_offset + 139, FONT_SMALL_BLACK);
+        image_draw(image_group(GROUP_RESOURCE_ICONS) + resource + resource_image_offset(resource, RESOURCE_IMAGE_ICON),
+            c->x_offset + 90 + width, c->y_offset + 135);
     }
     if (c->figure.phrase_id >= 0) {
         lang_text_draw_multiline(130, 21 * c->figure.sound_id + c->figure.phrase_id + 1,
@@ -365,7 +398,7 @@ static void draw_normal_figure(building_info_context *c, figure *f)
     lang_text_draw(65, f->name, c->x_offset + 90, c->y_offset + 108, FONT_LARGE_BROWN);
     if (f->type >= NEW_FIGURES_ID) {
         int relative_id = f->type - NEW_FIGURES_ID;
-        text_draw(translation_for(NEW_FIGURE_TYPES[relative_id]), c->x_offset + 92, c->y_offset + 139, FONT_SMALL_BLACK,0);
+        text_draw(translation_for(NEW_FIGURE_TYPES[relative_id]), c->x_offset + 92, c->y_offset + 139, FONT_SMALL_BLACK, 0);
     } else {
         lang_text_draw(64, f->type, c->x_offset + 92, c->y_offset + 139, FONT_SMALL_BLACK);
     }
@@ -400,7 +433,7 @@ static void draw_figure_info(building_info_context *c, int figure_id)
     } else if (type == FIGURE_CART_PUSHER || type == FIGURE_WAREHOUSEMAN || type == FIGURE_DOCKER) {
         draw_cartpusher(c, f);
     } else if (type == FIGURE_MARKET_SUPPLIER || type == FIGURE_MESS_HALL_SUPPLIER ||
-        type == FIGURE_PRIEST_SUPPLIER || type == FIGURE_BARKEEP_SUPPLIER) {
+        type == FIGURE_PRIEST_SUPPLIER || type == FIGURE_BARKEEP_SUPPLIER || type == FIGURE_CARAVANSERAI_SUPPLIER) {
         draw_supplier(c, f);
     } else if (type == FIGURE_WORK_CAMP_WORKER || type == FIGURE_WORK_CAMP_SLAVE) {
         draw_monument_worker(c, f);
@@ -443,7 +476,7 @@ static void draw_figure_in_city(int figure_id, pixel_coordinate *coord)
 void window_building_prepare_figure_list(building_info_context *c)
 {
     if (c->figure.count > 0) {
-        pixel_coordinate coord = {0, 0};
+        pixel_coordinate coord = { 0, 0 };
         if (config_get(CONFIG_UI_ZOOM)) {
             graphics_set_active_canvas(CANVAS_CITY);
         }

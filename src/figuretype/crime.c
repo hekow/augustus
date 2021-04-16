@@ -6,6 +6,7 @@
 #include "building/distribution.h"
 #include "building/storage.h"
 #include "building/warehouse.h"
+#include "city/data_private.h"
 #include "city/figures.h"
 #include "city/finance.h"
 #include "city/message.h"
@@ -29,6 +30,7 @@
 #include "scenario/property.h"
 
 #define MAX_LOOTING_DISTANCE 120
+#define COOLDOWN_AFTER_CRIME_DAYS 32
 
 static const int CRIMINAL_OFFSETS[] = {
     0, 0, 1, 2, 3, 4, 5, 6, 7, 7, 6, 5, 4, 3, 2, 1
@@ -121,6 +123,11 @@ static void generate_striker(building *b)
     }
 }
 
+static void set_crime_cooldown(void)
+{
+    city_data.sentiment.crime_cooldown = COOLDOWN_AFTER_CRIME_DAYS;
+}
+
 static void generate_rioter(building *b, int amount)
 {
     int x_road, y_road;
@@ -146,6 +153,8 @@ static void generate_rioter(building *b, int amount)
     tutorial_on_crime();
     city_message_apply_sound_interval(MESSAGE_CAT_RIOT);
     city_message_post_with_popup_delay(MESSAGE_CAT_RIOT, MESSAGE_RIOT, b->type, map_grid_offset(x_road, y_road));
+    set_crime_cooldown();
+
 }
 
 static void generate_looter(building *b, int amount)
@@ -163,6 +172,7 @@ static void generate_looter(building *b, int amount)
         f->roam_length = 0;
         f->wait_ticks = 10 + 4 * i;
     }
+    set_crime_cooldown();
 }
 
 static void generate_robber(building *b, int amount)
@@ -183,6 +193,7 @@ static void generate_robber(building *b, int amount)
         f->roam_length = 0;
         f->wait_ticks = 10 + 4 * i;
     }
+    set_crime_cooldown();
 }
 
 static void generate_protestor(building *b)
@@ -203,8 +214,7 @@ void figure_generate_criminals(void)
 {
     building *min_building = 0;
     int min_happiness = 50;
-    int max_id = building_get_highest_id();
-    for (int i = 1; i <= max_id; i++) {
+    for (int i = 1; i < building_count(); i++) {
         building *b = building_get(i);
         if (b->state == BUILDING_STATE_IN_USE && b->house_size) {
             if (b->sentiment.house_happiness >= 50) {
@@ -218,6 +228,10 @@ void figure_generate_criminals(void)
         if (b->strike_duration_days > 0) {
             generate_striker(b);
         }
+    }
+    if (city_data.sentiment.crime_cooldown > 0) {
+        city_data.sentiment.crime_cooldown -= 1;
+        return;
     }
     if (min_building) {
         min_building->sentiment.house_happiness += 2;
@@ -263,7 +277,7 @@ void figure_protestor_action(figure *f)
     figure_image_increase_offset(f, 64);
     f->cart_image_id = 0;
     if (f->action_state == FIGURE_ACTION_149_CORPSE) {
-        f->state = FIGURE_STATE_DEAD;
+        figure_combat_handle_corpse(f);
     }
     f->wait_ticks++;
     if (f->wait_ticks > 200 && f->building_id == 0) {
@@ -280,6 +294,7 @@ void figure_protestor_action(figure *f)
 void figure_rioter_action(figure *f)
 {
     city_figures_add_rioter(!f->targeted_by_figure_id);
+    f->terrain_usage = TERRAIN_USAGE_PREFER_ROADS;
     f->max_roam_length = 480;
     f->cart_image_id = 0;
     f->is_ghost = 0;
@@ -378,6 +393,10 @@ void figure_rioter_action(figure *f)
             if (f->direction == DIR_FIGURE_AT_DESTINATION) {
                 figure_crime_loot_storage(f, f->collecting_item_id, f->destination_building_id);
                 f->state = FIGURE_STATE_DEAD;
+            } else if (f->direction == DIR_FIGURE_REROUTE) {
+                figure_route_remove(f);
+            } else if (f->direction == DIR_FIGURE_LOST) {
+                f->state = FIGURE_STATE_DEAD;
             }
             break;
         case FIGURE_ACTION_229_CRIMINAL_GOING_TO_ROB:
@@ -385,6 +404,10 @@ void figure_rioter_action(figure *f)
             figure_movement_move_ticks(f, 1);
             if (f->direction == DIR_FIGURE_AT_DESTINATION) {
                 figure_crime_steal_money(f);
+                f->state = FIGURE_STATE_DEAD;
+            } else if (f->direction == DIR_FIGURE_REROUTE) {
+                figure_route_remove(f);
+            } else if (f->direction == DIR_FIGURE_LOST) {
                 f->state = FIGURE_STATE_DEAD;
             }
             break;

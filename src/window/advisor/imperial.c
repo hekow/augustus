@@ -237,7 +237,7 @@ void button_request(int index, int param2)
     }
 }
 
-static void write_resource_storage_tooltip(tooltip_context *c, int resource)
+static void write_resource_storage_tooltip(advisor_tooltip_result *r, int resource)
 {
     int amount_warehouse = city_resource_count(resource);
     int amount_granary = city_resource_count_food_on_granaries(resource) / RESOURCE_GRANARY_ONE_LOAD;
@@ -252,29 +252,27 @@ static void write_resource_storage_tooltip(tooltip_context *c, int resource)
     *text = ' ';
     text++;
     text = string_copy(translation_for(TR_ADVISOR_FROM_GRANARIES), text, RESOURCE_INFO_MAX_TEXT - (int) (text - tooltip_resource_info));
-    c->precomposed_text = tooltip_resource_info;
+    r->precomposed_text = tooltip_resource_info;
 }
 
-static int get_tooltip_text(tooltip_context *c)
+static void get_tooltip_text(advisor_tooltip_result *r)
 {
     if (focus_button_id && focus_button_id <= 2) {
-        return 93 + focus_button_id;
+        r->text_id = 93 + focus_button_id;
     } else if (focus_button_id == 3) {
-        return 131;
+        r->text_id = 131;
     } else if (focus_button_id >= 4 && focus_button_id <= 8) {
         int index = focus_button_id - 4;
         int request_status = city_request_get_status(index);
         if (request_status == CITY_REQUEST_STATUS_NOT_ENOUGH_RESOURCES || request_status >= CITY_REQUEST_STATUS_MAX) {
-            const scenario_request *request = scenario_request_get_visible(index);
+            const scenario_request *request = scenario_request_get_visible(index - city_military_has_distant_battle());
             int using_granaries;
             city_resource_get_amount_including_granaries(request->resource, request->amount, &using_granaries);
             if (using_granaries) {
-                write_resource_storage_tooltip(c, request->resource);
-                return 1;
+                write_resource_storage_tooltip(r, request->resource);
             }
         }
     }
-    return 0;
 }
 
 const advisor_window_type *window_advisor_imperial(void)
